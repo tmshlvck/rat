@@ -98,8 +98,6 @@ class LogPipe(threading.Thread):
 		for line in iter(self.pipeReader.readline, ''):
 			self.log.debug(line.strip('\n'))
 
-#		self.pipeReader.close()
-
 	def close(self):
 		"""
 		Close the write end of the pipe.
@@ -113,22 +111,6 @@ def cisco_connect(host,user,password,enabpassword=None,command=None,output_handl
 	"""
 	Connect and handle connection to a Cisco IOS.
 	"""
-
-	if not host:
-		Exception("Missing needed argument host.")
-
-	if not user:
-		Exception("Missing needed argument user.")
-
-	if not password:
-		Exception("Missing needed argument password.")
-
-	log = logging.getLogger("cisco_connect")
-	log.debug("Connecting to host "+host+" for user "+user+" port "+str(port))
-	if command:
-		log.debug("Going to run "+("(enabled)" if enabpassword else "(not enabled)")+" command(s): "+command)
-	else:
-		log.debug("Going to interactive mode "+("(enabled)" if enabpassword else "(not enabled)"))
 
 	CISCO_EXPECT_PASSWORD='(P|p)assword:'
 	CISCO_EXPECT_PROMPT = '\n[a-zA-Z0-9\._-]+(>|#)'
@@ -152,23 +134,12 @@ def cisco_connect(host,user,password,enabpassword=None,command=None,output_handl
 		session.expect([CISCO_EXPECT_PROMPT])
 
 
-	c = BIN_SSH+(' ' if port == 22 else ' -p'+str(port)+' ')+user+'@'+host
-	log.debug("Spawning command "+c)
-	s = pexpect.spawn(c,timeout=timeout)
-
-	if log.isEnabledFor(logging.DEBUG):
-		s.logfile = LogPipe("pexpect")
-
-	# try block due to pexpect debugging which absolutely needs
-	# to close the pipe in the end or the application locks down
-	try:
-
+	def handle_ssh(s, log):
 		y=0
 		p=0
-		# handle ssh
 		while True:
 			i=s.expect([SSH_EXPECT_NEWKEY, CISCO_EXPECT_PASSWORD,
-					CISCO_EXPECT_PROMPT])
+				CISCO_EXPECT_PROMPT])
 			if i==0:
 				if y>1:
 					raise Exception("SSH session failed: Can not save SSH key.")
@@ -191,71 +162,117 @@ def cisco_connect(host,user,password,enabpassword=None,command=None,output_handl
 				log.debug("Got first prompt.")
 				break
 
+
+	def handle_enab(s, log, enabpassword):
+		log.debug("Sending enable...")
+		s.sendline("enable")
+		i = s.expect([CISCO_EXPECT_PASSWORD, CISCO_EXPECT_PROMPT])
+		if i==0:
+			log.debug("Sending enable password...")
+			lf = s.logfile
+			s.logfile = None
+			s.sendline(enabpassword)
+			s.logfile = lf
+			s.expect([CISCO_EXPECT_PROMPT])
+
+		elif i==1: # shell
+			log.debug("Got enabled prompt.")
+			pass
+
+
+	def run_command(s, log, command):
+		cisco_setwinsize(0, 0, s)
+
+		for l in command.splitlines():
+			# remove empty commands
+			if(l.strip() == ''):
+				continue
+
+			log.debug("Running command: "+l)
+			s.sendline(l)
+			while True:
+				i=s.expect([CISCO_EXPECT_PROMPT])
+				if(i==0): # prompt
+					log.debug("Got prompt after command. before="+s.before)
+					print "Got prompt after command. before="+s.before
+					break
+				elif(i==1): # anything to capture
+					log.debug("Got output from command: <"+s.before+">")
+					import re
+					if re.match(CISCO_EXPECT_PROMPT,s.before):
+						break
+					if output_handler:
+						log.debug("Calling output handler.")
+						try:
+							output_handler(command, s.before)
+						except Exception as e:
+							log.error("Output handler failed for command "+l+" "+traceback.format_exc())
+					else:
+						print s.before
+
+		log.debug("Sending logout...")
+		s.sendline('logout')
+		s.expect(['\n'])
+
+
+	def go_interactive(s, log):
+		# set environment for cisco_setwinsize()
+		global cisco_session
+		cisco_session = s
+		global setwinsize
+		setwinsize = cisco_setwinsize
+
+		# run setwinsize
+		cisco_setwinsize(*(get_term_size()),session=s)
+		log.info("Opening interactive session to "+host+":")
+		sys.stdout.write(s.after)
+		s.interact()
+
+
+
+
+
+	if not host:
+		Exception("Missing needed argument host.")
+
+	if not user:
+		Exception("Missing needed argument user.")
+
+	if not password:
+		Exception("Missing needed argument password.")
+
+	log = logging.getLogger("cisco_connect")
+	log.debug("Connecting to host "+host+" for user "+user+" port "+str(port))
+	if command:
+		log.debug("Going to run "+("(enabled)" if enabpassword else "(not enabled)")+" command(s): "+command)
+	else:
+		log.debug("Going to interactive mode "+("(enabled)" if enabpassword else "(not enabled)"))
+
+	c = BIN_SSH+(' ' if port == 22 else ' -p'+str(port)+' ')+user+'@'+host
+	log.debug("Spawning command "+c)
+	s = pexpect.spawn(c,timeout=timeout)
+
+	if log.isEnabledFor(logging.DEBUG):
+		s.logfile = LogPipe("pexpect")
+
+	# try block due to pexpect debugging which absolutely needs
+	# to close the pipe in the end or the application locks down
+	try:
+		handle_ssh(s, log)
+
 		if enabpassword:
-			log.debug("Sending enable...")
-			s.sendline("enable")
-			i = s.expect([CISCO_EXPECT_PASSWORD, CISCO_EXPECT_PROMPT])
-			if i==0:
-				log.debug("Sending enable password...")
-				lf = s.logfile
-				s.logfile = None
-				s.sendline(enabpassword)
-				s.logfile = lf
-				s.expect([CISCO_EXPECT_PROMPT])
-			
-			elif i==1: # shell
-				log.debug("Got enabled prompt.")
-				pass
+			handle_enab(s,log,enabpassword)
 
 		if command:
-			cisco_setwinsize(0, 0, s)
-
-			for l in command.splitlines():
-#				if(l.strip() == ''):
-#					continue
-				log.debug("Running command: "+l)
-				s.sendline(l)
-				while True:
-					i=s.expect([CISCO_EXPECT_PROMPT])
-					if(i==0): # prompt
-						log.debug("Got prompt after command. before="+s.before)
-						print "Got prompt after command. before="+s.before
-						break
-					elif(i==1): # anything to capture
-						log.debug("Got output from command: <"+s.before+">")
-						import re
-						if re.match(CISCO_EXPECT_PROMPT,s.before):
-							break
-						if output_handler:
-							log.debug("Calling output handler.")
-							try:
-								output_handler(command, s.before)
-							except Exception as e:
-								log.error("Output handler failed for command "+l+" "+traceback.format_exc())
-						else:
-							print s.before
-
-			log.debug("Sending logout...")
-			s.sendline('logout')
-			s.expect(['\n'])
-
+			run_command(s, log, command)
 		else:
-			# set environment for cisco_setwinsize()
-			global cisco_session
-			cisco_session = s
-			global setwinsize
-			setwinsize = cisco_setwinsize
-
-			# run setwinsize
-			cisco_setwinsize(*(get_term_size()),session=s)
-			log.info("Opening interactive session to "+host+":")
-			sys.stdout.write(s.after)
-			s.interact()
-
+			go_interactive(s, log)
 	finally:
 		if s.logfile:
 			s.logfile.close()
-		
+# end of cisco_connect
+
+	
 
 def main(argv):
 	# setup logger
