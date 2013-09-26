@@ -22,12 +22,21 @@ This module reads and filters list of routers (or any other network devices).
 """
 
 # Global helpers and constants
+DEVICE_LIST = "device-list.conf"
+""" Path to the text list of devices. Usually /etc/rat/device-list.txt . """
+
+CONSOLE_LOGFORMAT = '%(message)s'
+""" Logging format for console output. """
+
+LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
+""" Logging format for logfile output. """
+# End of helpers and constants
+
 
 import logging
 import traceback
 import sys
 
-import defaults
 
 class ParseError(Exception):
 	""" rlist parse exception class """
@@ -35,7 +44,7 @@ class ParseError(Exception):
 		Exception.__init__(self,message+"on line: "+line)
 
 
-def read_list(filename=defaults.DEVICE_LIST):
+def read_list(filename=DEVICE_LIST):
 	""" Read router list from file and return iterator over group tuples. """
 
 	rl = open(filename, 'r')
@@ -111,7 +120,7 @@ def main(argv):
 	parser.add_argument('-t', '--type', action='store', dest='type',
 			help='manually override enable password instead of using configuration')
 	parser.add_argument('-f', '--file', action='store', dest='filename',
-			default=defaults.DEVICE_LIST, help='override device list file')
+			default=DEVICE_LIST, help='override device list file')
 	parser.add_argument('-p', '--show-passwords', action='store_const', dest='showpass',
 			const=True, default=False, help='shpow passwords in output')
 
@@ -123,9 +132,9 @@ def main(argv):
 
 	# setup logger
 	if args.logfile:
-		logging.basicConfig(level=args.loglevel,format=defaults.LOGFILE_LOGFORMAT,filename=args.logfile)
+		logging.basicConfig(level=args.loglevel,format=LOGFILE_LOGFORMAT,filename=args.logfile)
 	else:
-		logging.basicConfig(level=args.loglevel,format=defaults.CONSOLE_LOGFORMAT)
+		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
 
 
 	for rg in filter_list(read_list(args.filename), args.host, args.type):

@@ -22,6 +22,15 @@ This module does remote logins and it is writen in Python, not expect(!) indeed.
 """
 
 # Global helpers and constants
+BIN_SSH = "/usr/bin/ssh"
+""" System specific SSH binary path. Usually /usr/bin/ssh . """
+
+CONSOLE_LOGFORMAT = '%(message)s'
+""" Logging format for console output. """
+
+LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
+""" Logging format for logfile output. """
+
 SSH_EXPECT_NEWKEY='Are you sure you want to continue connecting'
 """ Expect string form SSH binary when new SSH key is encountered. """
 
@@ -32,7 +41,6 @@ import struct, fcntl, termios
 import traceback
 import threading, os
 
-import defaults
 import rlist
 
 def get_term_size():
@@ -144,7 +152,7 @@ def cisco_connect(host,user,password,enabpassword=None,command=None,output_handl
 		session.expect([CISCO_EXPECT_PROMPT])
 
 
-	c = defaults.BIN_SSH+(' ' if port == 22 else ' -p'+str(port)+' ')+user+'@'+host
+	c = BIN_SSH+(' ' if port == 22 else ' -p'+str(port)+' ')+user+'@'+host
 	log.debug("Spawning command "+c)
 	s = pexpect.spawn(c,timeout=timeout)
 
@@ -275,7 +283,7 @@ def main(argv):
 			help='manually override enable password instead of using configuration')
 	parser.add_argument('-c', '--command', action='store', dest='command', nargs='?', default='',
 			help='run command and exit, leave empty to let script read commands from stdin')
-	parser.add_argument('-f', '--file', action='store', dest='filename', default=defaults.DEVICE_LIST,
+	parser.add_argument('-f', '--file', action='store', dest='filename',
 			help='override device list file')
 
 	parser.add_argument('host', help='host to interact with (short name, FQDN or IP address)')
@@ -284,9 +292,9 @@ def main(argv):
 
 	# setup logger
 	if args.logfile:
-		logging.basicConfig(level=args.loglevel,format=defaults.LOGFILE_LOGFORMAT,filename=args.logfile)
+		logging.basicConfig(level=args.loglevel,format=LOGFILE_LOGFORMAT,filename=args.logfile)
 	else:
-		logging.basicConfig(level=args.loglevel,format=defaults.CONSOLE_LOGFORMAT)
+		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
 
 	if args.command == None: # command set to None when -c without args is present
 		if os.isatty(sys.stdin.fileno()):
@@ -298,7 +306,8 @@ def main(argv):
 
 	# start command	
 	try:
-		hostgroups = list(rlist.filter_list(rlist.read_list(args.filename), args.host, None))
+		rl = rlist.read_list(args.filename) if args.filename else rlist.read_list()
+		hostgroups = list(rlist.filter_list(rl, args.host, None))
 		if len(hostgroups) == 0:
 			cisco_connect(args.host, args.user, args.password, args.enabpass, args.command)
 
