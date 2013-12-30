@@ -1,0 +1,13 @@
+Router Administration Toolkit
+
+Simple toolkit for connecting and issuing commands or interacting with
+various network devices over SSH or any other text interface.
+
+Supported devices:
+ * Cisco IOS (tested: 12.2, 15.0, 15.2)
+ * HP ProCurve switched (tested: 2610 + 2810 series)
+
+
+Author(s):
+Tomas Hlavacek (tomas.hlavacek@nic.cz)
+
