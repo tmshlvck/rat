@@ -1,0 +1,78 @@
+#!/usr/bin/env python
+#
+# rat-list - Router Automation Toolkit: router list manager script
+# (C) 2013 Tomas Hlavacek (tmshlvck@gmail.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+"""
+This module reads and filters list of routers (or any other network devices).
+"""
+
+# Global helpers and constants
+CONSOLE_LOGFORMAT = '%(message)s'
+""" Logging format for console output. """
+
+LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
+""" Logging format for logfile output. """
+# End of helpers and constants
+
+
+import logging
+import sys
+
+import rlist
+
+
+def main(argv):
+	# setup logger
+	log = logging.getLogger("rlist")
+
+	# parse command line args
+	import argparse
+	parser = argparse.ArgumentParser(description='Line interface for remote routers.')
+	parser.add_argument('-d', '--debug', action='store_const', dest='loglevel',
+			const=logging.DEBUG, default=logging.INFO,
+			help='enable debugging of pexpect and script flow')
+	parser.add_argument('-l', '--log', action='store', dest='logfile',
+			help='write log messages to logfile instead of stderr')
+	parser.add_argument('-t', '--type', action='store', dest='type',
+			help='manually override enable password instead of using configuration')
+	parser.add_argument('-f', '--file', action='store', dest='filename',
+			default=None, help='override device list file')
+	parser.add_argument('-p', '--show-passwords', action='store_const', dest='showpass',
+			const=True, default=False, help='show passwords in output')
+	parser.add_argument('-a', '--allow-disabled', action='store_const', dest='allow_disab',
+			const=True, default=False, help='show disabled hosts as well')
+
+	parser.add_argument('host', nargs="?", help='host to filter by name (short name or begining of FQDN)')
+
+	args = parser.parse_args(argv[1:])
+
+	# setup logger
+	if args.logfile:
+		logging.basicConfig(level=args.loglevel,format=LOGFILE_LOGFORMAT,filename=args.logfile)
+	else:
+		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
+
+	# obtain the list and run the filters on that
+	rl = rlist.read_list(args.filename) if args.filename else rlist.read_list()
+	for rs in rlist.filter_list(rl, args.host, args.type,  args.allow_disab):
+		print rs.getLine(not args.showpass)
+
+
+if __name__ == "__main__":
+	main(sys.argv)
+

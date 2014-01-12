@@ -1,5 +1,5 @@
-# short name	long name			type		user	password	enable password
-snort		snort.domain.tld		ios		brill	password1	password2
-trunk		trunk.domain.tld		ios		brill	password3	password4
-pig		pig.domain.tld			procurve	brill	password5
-mamut		mamut.domain.tld		procurve	brill	password6
+# short name	long name			type		enabled	user	password	enable password
+snort		snort.domain.tld		ios		1	brill	password1	password2
+trunk		trunk.domain.tld		ios		0	brill	password3	password4
+pig		pig.domain.tld			procurve	1	brill	password5
+mamut		mamut.domain.tld		procurve	0	brill	password6

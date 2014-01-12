@@ -1,0 +1,177 @@
+#!/usr/bin/env python
+#
+# rat-com - Router Automation Toolkit : remote communicator script
+# (C) 2013 Tomas Hlavacek (tmshlvck@gmail.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+"""
+This script does remote logins and it is writen in Python, not expect(!) indeed.
+"""
+
+import sys
+import logging
+import traceback
+
+import rlist
+
+CONSOLE_LOGFORMAT = '%(message)s'
+""" Logging format for console output. """
+
+LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
+""" Logging format for logfile output. """
+
+
+device_session = None
+
+def sigwinch(sig, data):
+	""" React on signal SIGWINCH. """
+	global device_session
+	if device_session:
+		try:
+			device_session.setWinSize(*(get_term_size()))
+		except:
+			pass
+
+
+def resolve_one_host(hostname, router_type=None, user=None, password=None, enablepassword=None, filename=None):
+	l = rlist.read_list(filename) if filename else rlist.read_list()
+	hosts = list(rlist.filter_list(l, hostname, router_type))
+	h = None
+	if len(hosts) == 0:
+		h = rlist.HostSpec()
+		h.init(hostname,router_type,True,user,password,enablepassword)
+	elif len(hosts) == 1:
+		h = hosts[0].clone()
+		if user:
+			h.user = user
+		if password:
+			h.password = password
+		if enablepassword:
+			h.enablepassword = enablepassword
+	else:
+		raise Exception("Host name matching error. Matched "+str(len(hostgroups))+". Need to have single match.")
+
+	if not h.type:
+		raise Exception("Can not resolve host: Unknown host type.")
+	if not h.hostname:
+		raise Exception("Can not resolve host: No host specified.")
+
+	return h
+
+def connect(hostspec,port=22,timeout=10):
+	nrt = hostspec.type.strip()
+	s = None
+	if nrt == 'ios':
+		if not hostspec.user:
+			raise Exception("Can not connect: No user specified.")
+		if not hostspec.password:
+			# use blank password in that case... it might be ignored anyway
+			hostspec.password = ''
+
+
+		import cisco
+		s = cisco.Cisco(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
+		s.connect()
+		
+	elif nrt == 'procurve':
+		import procurve
+		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
+		s.connect()
+	else:
+		raise Exception("Unknown router type: "+nrt)
+
+	# set global device_session for signal handler
+	global device_session
+	device_session = s
+
+	return s
+
+def main(argv):
+	# setup logger
+	log = logging.getLogger("rcom")
+
+	# set signal SIGWINCH handler
+	import signal
+	signal.signal(signal.SIGWINCH, sigwinch)
+
+	# parse command line args
+	import argparse
+	parser = argparse.ArgumentParser(description='Line interface for remote routers.')
+	parser.add_argument('-d', '--debug', action='store_const', dest='loglevel',
+			const=logging.DEBUG, default=logging.INFO,
+			help='enable debugging of pexpect and script flow')
+	parser.add_argument('-l', '--log', action='store', dest='logfile',
+			help='write log messages to logfile instead of stderr')
+	parser.add_argument('-u', '--user', action='store', dest='user',
+			help='override username instead of using configuration')
+	parser.add_argument('-p', '--password', action='store', dest='password',
+			help='override password instead of using configuration')
+	parser.add_argument('-e', '--enable', action='store', dest='enabpass',
+			help='override enable password instead of using configuration')
+	parser.add_argument('-t', '--type', action='store', dest='router_type',
+			help='override type, possible values: [ios,procurve]')
+	parser.add_argument('-c', '--command', action='store', dest='command', nargs='?', default='',
+			help='run command and exit, leave empty to let script read commands from stdin')
+	parser.add_argument('-f', '--file', action='store', dest='filename',
+			help='override device list file')
+
+	parser.add_argument('host', help='host to interact with (short name, FQDN or IP address)')
+
+	args = parser.parse_args(argv[1:])
+
+	# setup logger
+	if args.logfile:
+		logging.basicConfig(level=args.loglevel,format=LOGFILE_LOGFORMAT,filename=args.logfile)
+	else:
+		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
+
+	# normalize command
+	if args.command == None: # command set to None when -c without args is present
+		if os.isatty(sys.stdin.fileno()):
+			print "Enter commands (Ctrl-D to finish):"
+		# read commands from stdin
+		args.command = ''.join(sys.stdin.readlines())
+	if args.command == '': # default, no -c specified
+		args.command = None
+
+	# find details of host and fill the HostSpec object
+	hs = resolve_one_host(args.host, args.router_type, args.user, args.password, args.enabpass, args.filename)
+
+	# connect to the host
+	ds = None
+	try:
+		ds = connect(hs)
+
+	# and run the command or pass the session to the user
+		if args.command:
+			log.debug("Going to run "+("(enabled)" if hs.enablepassword else "(not enabled)")+" command(s): "+args.command)
+			ds.command(args.command)
+		else:
+			log.debug("Going to interactive mode "+("(enabled)" if hs.enablepassword else "(not enabled)"))
+			ds.interact()
+	except:
+		log.error("Connect failed: "+traceback.format_exc())
+	finally:
+		if ds:
+			ds.disconnect()
+
+
+
+
+
+if __name__ == "__main__":
+	main(sys.argv)
+

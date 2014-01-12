@@ -22,31 +22,135 @@ This module reads and filters list of routers (or any other network devices).
 """
 
 # Global helpers and constants
-DEVICE_LIST = "device-list.conf"
+DEVICE_LIST = "/home/brill/projects/rat/device-list.conf"
 """ Path to the text list of devices. Usually /etc/rat/device-list.txt . """
 
-CONSOLE_LOGFORMAT = '%(message)s'
-""" Logging format for console output. """
-
-LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
-""" Logging format for logfile output. """
 # End of helpers and constants
-
-
-import logging
-import traceback
-import sys
 
 
 class ParseError(Exception):
 	""" rlist parse exception class """
 	def __init__(self,message,line):
-		Exception.__init__(self,message+"on line: "+line)
+		Exception.__init__(self,message+" on line: "+line)
+
+
+class HostSpec(object):
+	def __init__(self, line=None, defaults=None):
+		self.shortname = None
+		self.hostname = None
+		self.type = None
+		self.enabled = False
+		self.user = None
+		self.password = None
+		self.enablepassword = None
+		
+		if line:
+			self.parseLine(line, defaults)
+
+	def init(self, hostname, host_type, enabled=False, user=None, password=None, enablepassword=None, shortname=None):
+		if not hostname:
+			raise Exception("Can not init HostSpec object without name.")
+		if not host_type:
+			raise Exception("Can not init HostSpec object without host type.")
+
+		self.shortname = hostname.split('.',1)[0] if not shortname else shortname
+		self.hostname = hostname
+		self.type = host_type
+		self.enabled = enabled
+		self.user = user
+		self.password = password
+		self.enablepassword = enablepassword
+
+	def clone(self):
+		hc = HostSpec()
+		hc.init(self.hostname, self.type, self.enabled, self.user, self.password, self.enablepassword, self.shortname)
+		return hc
+
+	def parseLine(self, line, defaults=None):
+		g = line.lstrip().split()
+		l = len(g)
+		if l > 7:
+			raise ParseError("Too much groups on line.", line, l)
+
+
+		if l < 4:
+			raise ParseError("Too few groups on line.", line, l)
+
+		self.shortname = g[0]
+		self.hostname = g[1]
+		self.type = g[2]
+		self.enabled = int(g[3])
+		if l >= 5:
+			self.user = g[4]
+		else:
+			if self.type in defaults and not self.isDefault():
+				self.user = defaults[self.type].user
+		if l >= 6:
+			self.password = g[5]
+		else:
+			if self.type in defaults and not self.isDefault():
+				self.password = defaults[self.type].password
+		if l == 7:
+			self.enablepassword = g[6]
+		else:
+			if self.type in defaults and not self.isDefault():
+				self.enablepassword = defaults[self.type].enablepassword
+
+	def getList(self,  anonymize=False):
+		def anon(string, anonymize):
+			if not string:
+				return string
+			
+			if anonymize:
+				return '*'*len(string)
+			else:
+				return string
+			
+		
+		return [self.shortname, 
+					self.hostname, 
+					self.type, 
+					str(self.enabled), 
+					self.user, 
+					anon(self.password,  anonymize), 
+					anon(self.enablepassword, anonymize)]
+
+
+	def getLine(self, anonymize=False):
+		return '\t'.join([e for e in self.getList(anonymize) if e])
+
+	def compareName(self, name):
+		if name == None:
+			return True
+
+		nname = name.strip().lower()
+		if nname == self.shortname.strip().lower():
+			return True
+		elif self.hostname.strip().lower().startswith(nname):
+			return True
+		else:
+			return False
+
+	def compareType(self, rtype):
+		if rtype == None:
+			return True
+
+		if rtype.strip().lower() == self.type.strip().lower():
+			return True
+		else:
+			return False
+
+	def isDefault(self):
+		if self.compareName('*'):
+			return True
+		else:
+			return False
 
 
 def read_list(filename=DEVICE_LIST):
 	""" Read router list from file and return iterator over group tuples. """
 
+	defaults = {}
 	rl = open(filename, 'r')
 	for l in rl.readlines():
 		if l.lstrip().startswith("#"):
@@ -56,94 +160,24 @@ def read_list(filename=DEVICE_LIST):
 		if l.strip() == '':
 			continue
 
-		g = l.lstrip().split()
-		if len(g) > 6:
-			raise ParseError("Too much groups on line.", l)
+		hs = HostSpec(l, defaults)
+		if hs.isDefault():
+			defaults[hs.type] = hs
+		else:
+			yield hs
 
-		if len(g) < 3:
-			raise ParseErrir("Too few groups on line.", l)
 
-		yield g
-
-def filter_list(in_list, name=None, router_type=None):
+def filter_list(in_list, name=None, router_type=None, allow_disabled=False):
 	""" Filter router list. """
-	def compare_name(name, record):
-		if name == None:
-			return True
 
-		nname = name.strip().lower()
-		if nname == record[0].strip().lower():
-			return True
-		elif record[1].strip().lower().startswith(nname):
-			return True
-		else:
-			return False
-
-	def compare_type(rtype,record):
-		if rtype == None:
-			return True
-
-		if rtype.strip().lower() == record[2].strip().lower():
-			return True
-		else:
-			return False
-	
 	for r in in_list:
-		if compare_name(name,r) and compare_type(router_type,r):
+		if not allow_disabled and not r.enabled:
+			continue
+		if r.compareName(name) and r.compareType(router_type):
 			yield r
 
 
-def remove_pass(router_group):
-	""" Replace passwords from router groups. """
-
-	for i,ge in enumerate(router_group):
-		if i == 4:
-			yield '*'*len(ge)
-		elif i == 5:
-			yield '*'*len(ge)
-		else:
-			yield ge
-
-
-def main(argv):
-	# setup logger
-	log = logging.getLogger("remcomm")
-
-	# parse command line args
-	import argparse
-	parser = argparse.ArgumentParser(description='Line interface for remote routers.')
-	parser.add_argument('-d', '--debug', action='store_const', dest='loglevel',
-			const=logging.DEBUG, default=logging.INFO,
-			help='enable debugging of pexpect and script flow')
-	parser.add_argument('-l', '--log', action='store', dest='logfile',
-			help='write log messages to logfile instead of stderr')
-	parser.add_argument('-t', '--type', action='store', dest='type',
-			help='manually override enable password instead of using configuration')
-	parser.add_argument('-f', '--file', action='store', dest='filename',
-			default=DEVICE_LIST, help='override device list file')
-	parser.add_argument('-p', '--show-passwords', action='store_const', dest='showpass',
-			const=True, default=False, help='shpow passwords in output')
-
-	parser.add_argument('host', nargs="?", help='host to filter by name (short name or begining of FQDN)')
-
-	args = parser.parse_args(argv[1:])
-#	print str(args)
-#	return
-
-	# setup logger
-	if args.logfile:
-		logging.basicConfig(level=args.loglevel,format=LOGFILE_LOGFORMAT,filename=args.logfile)
-	else:
-		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
-
-
-	for rg in filter_list(read_list(args.filename), args.host, args.type):
-		if args.showpass:
-			print "\t".join(rg)
-		else:
-			print "\t".join(remove_pass(rg))
-
 
 if __name__ == "__main__":
-	main(sys.argv)
+	raise Exception("This is a module with no directly executable code.")
 
