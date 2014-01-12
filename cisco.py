@@ -35,9 +35,7 @@ LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
 import pexpect
 import sys
 import logging
-import struct, fcntl, termios
 import traceback
-import threading, os
 
 import rcom
 

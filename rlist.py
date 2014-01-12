@@ -148,7 +148,7 @@ class HostSpec(object):
 
 
 def read_list(filename=DEVICE_LIST):
-	""" Read router list from file and return iterator over group tuples. """
+	""" Read host list from file and return iterator over group tuples. """
 
 	defaults = {}
 	rl = open(filename, 'r')
@@ -168,13 +168,40 @@ def read_list(filename=DEVICE_LIST):
 
 
 def filter_list(in_list, name=None, router_type=None, allow_disabled=False):
-	""" Filter router list. """
+	""" Filter host list. """
 
 	for r in in_list:
 		if not allow_disabled and not r.enabled:
 			continue
 		if r.compareName(name) and r.compareType(router_type):
 			yield r
+
+
+def resolve_one_host(hostname, router_type=None, user=None, password=None, enablepassword=None, filename=None):
+	""" Find HostSpec for the list of criterions, fill defaults and override additionals. """
+	l = read_list(filename) if filename else read_list()
+	hosts = list(filter_list(l, hostname, router_type))
+	h = None
+	if len(hosts) == 0:
+		h = HostSpec()
+		h.init(hostname,router_type,True,user,password,enablepassword)
+	elif len(hosts) == 1:
+		h = hosts[0].clone()
+		if user:
+			h.user = user
+		if password:
+			h.password = password
+		if enablepassword:
+			h.enablepassword = enablepassword
+	else:
+		raise Exception("Host name matching error. Matched "+str(len(hostgroups))+". Need to have single match.")
+
+	if not h.type:
+		raise Exception("Can not resolve host: Unknown host type.")
+	if not h.hostname:
+		raise Exception("Can not resolve host: No host specified.")
+
+	return h
 
 
 

@@ -25,6 +25,7 @@ import sys
 import logging
 import traceback
 
+import rcom
 import rlist
 
 CONSOLE_LOGFORMAT = '%(message)s'
@@ -46,58 +47,6 @@ def sigwinch(sig, data):
 			pass
 
 
-def resolve_one_host(hostname, router_type=None, user=None, password=None, enablepassword=None, filename=None):
-	l = rlist.read_list(filename) if filename else rlist.read_list()
-	hosts = list(rlist.filter_list(l, hostname, router_type))
-	h = None
-	if len(hosts) == 0:
-		h = rlist.HostSpec()
-		h.init(hostname,router_type,True,user,password,enablepassword)
-	elif len(hosts) == 1:
-		h = hosts[0].clone()
-		if user:
-			h.user = user
-		if password:
-			h.password = password
-		if enablepassword:
-			h.enablepassword = enablepassword
-	else:
-		raise Exception("Host name matching error. Matched "+str(len(hostgroups))+". Need to have single match.")
-
-	if not h.type:
-		raise Exception("Can not resolve host: Unknown host type.")
-	if not h.hostname:
-		raise Exception("Can not resolve host: No host specified.")
-
-	return h
-
-def connect(hostspec,port=22,timeout=10):
-	nrt = hostspec.type.strip()
-	s = None
-	if nrt == 'ios':
-		if not hostspec.user:
-			raise Exception("Can not connect: No user specified.")
-		if not hostspec.password:
-			# use blank password in that case... it might be ignored anyway
-			hostspec.password = ''
-
-
-		import cisco
-		s = cisco.Cisco(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
-		s.connect()
-		
-	elif nrt == 'procurve':
-		import procurve
-		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
-		s.connect()
-	else:
-		raise Exception("Unknown router type: "+nrt)
-
-	# set global device_session for signal handler
-	global device_session
-	device_session = s
-
-	return s
 
 def main(argv):
 	# setup logger
@@ -148,12 +97,19 @@ def main(argv):
 		args.command = None
 
 	# find details of host and fill the HostSpec object
-	hs = resolve_one_host(args.host, args.router_type, args.user, args.password, args.enabpass, args.filename)
+	hs = rlist.resolve_one_host(args.host, args.router_type, args.user, args.password, args.enabpass, args.filename)
 
 	# connect to the host
 	ds = None
 	try:
-		ds = connect(hs)
+		# prepare session
+		ds = rcom.prepare_session(hs)
+		# set global device_session for signal handler
+		global device_session
+		device_session = ds
+		# and finally connect
+		ds.connect()
+
 
 	# and run the command or pass the session to the user
 		if args.command:

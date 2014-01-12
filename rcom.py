@@ -35,7 +35,6 @@ import pexpect
 import sys
 import logging
 import struct, fcntl, termios
-import traceback
 import threading, os
 
 import rlist
@@ -99,6 +98,7 @@ class LogPipe(threading.Thread):
 
 
 class Device(object):
+	""" TODO """
 	def connect(self):
 		pass
 
@@ -176,6 +176,32 @@ class DeviceOverSSH(Device):
 	def getExpectSession(self):
 		return self.sess
 
+
+
+def prepare_session(hostspec,port=22,timeout=10):
+	"""
+	TODO
+	"""
+	nrt = hostspec.type.strip()
+	s = None
+	if nrt == 'ios':
+		if not hostspec.user:
+			raise Exception("Can not connect: No user specified.")
+		if not hostspec.password:
+			# use blank password in that case... it might be ignored anyway
+			hostspec.password = ''
+
+
+		import cisco
+		s = cisco.Cisco(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
+		
+	elif nrt == 'procurve':
+		import procurve
+		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
+	else:
+		raise Exception("Unknown router type: "+nrt)
+
+	return s
 
 
 if __name__ == "__main__":
