@@ -22,16 +22,6 @@ This module does remote logins to HP ProCurve boxes and it is writen
 in Python, not expect(!) indeed.
 """
 
-# Global helpers and constants
-BIN_OPENSSH = "/usr/bin/ssh"
-""" System specific SSH binary path. Usually /usr/bin/ssh . """
-
-CONSOLE_LOGFORMAT = '%(message)s'
-""" Logging format for console output. """
-
-LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
-""" Logging format for logfile output. """
-
 import pexpect
 import sys
 import logging
@@ -54,7 +44,7 @@ class ProCurve(rcom.DeviceOverSSH):
 	SEND_YES = 'y'
 	
 
-	def __init__(self,host,user,password,enabpassword=None,port=22,timeout=10):
+	def __init__(self,host,user,password,enabpassword=None,port=rcom.DEFAULT_SSH_PORT,timeout=rcom.DEFAULT_TIMEOUT):
 		rcom.DeviceOverSSH.__init__(self)
 		self.log = logging.getLogger("procurve")
 		self.host = host
@@ -62,6 +52,8 @@ class ProCurve(rcom.DeviceOverSSH):
 		self.password = password
 		self.enabpassword = enabpassword
 		self.port = port
+		if not self.port:
+			self.port = rcom.DEFAULT_SSH_PORT
 		self.timeout = timeout
 		self.log = logging.getLogger("procurve")
 

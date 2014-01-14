@@ -24,6 +24,8 @@ This script does remote logins and it is writen in Python, not expect(!) indeed.
 import sys
 import logging
 import traceback
+import signal
+import argparse
 
 import rcom
 import rlist
@@ -53,29 +55,31 @@ def main(argv):
 	log = logging.getLogger("rcom")
 
 	# set signal SIGWINCH handler
-	import signal
 	signal.signal(signal.SIGWINCH, sigwinch)
 
 	# parse command line args
-	import argparse
 	parser = argparse.ArgumentParser(description='Line interface for remote routers.')
 	parser.add_argument('-d', '--debug', action='store_const', dest='loglevel',
-			const=logging.DEBUG, default=logging.INFO,
-			help='enable debugging of pexpect and script flow')
+			    const=logging.DEBUG, default=logging.INFO,
+			    help='enable debugging of pexpect and script flow')
 	parser.add_argument('-l', '--log', action='store', dest='logfile',
-			help='write log messages to logfile instead of stderr')
+			    help='write log messages to logfile instead of stderr')
 	parser.add_argument('-u', '--user', action='store', dest='user',
-			help='override username instead of using configuration')
+			    help='override username instead of using configuration')
 	parser.add_argument('-p', '--password', action='store', dest='password',
-			help='override password instead of using configuration')
+			    help='override password instead of using configuration')
 	parser.add_argument('-e', '--enable', action='store', dest='enabpass',
-			help='override enable password instead of using configuration')
+			    help='override enable password instead of using configuration')
 	parser.add_argument('-t', '--type', action='store', dest='router_type',
-			help='override type, possible values: [ios,procurve]')
+			    help='override type, possible values: [ios,procurve]')
 	parser.add_argument('-c', '--command', action='store', dest='command', nargs='?', default='',
-			help='run command and exit, leave empty to let script read commands from stdin')
+			    help='run command and exit, leave empty to let script read commands from stdin')
 	parser.add_argument('-f', '--file', action='store', dest='filename',
-			help='override device list file')
+			    help='override device list file')
+	parser.add_argument('-r', '--port', action='store', dest='port',
+			    help='override TCP port (default 22)')
+	parser.add_argument('-o', '--timeout', action='store', dest='timeout',
+			    help='override timeout (default 10 sec)')
 
 	parser.add_argument('host', help='host to interact with (short name, FQDN or IP address)')
 
@@ -97,13 +101,13 @@ def main(argv):
 		args.command = None
 
 	# find details of host and fill the HostSpec object
-	hs = rlist.resolve_one_host(args.host, args.router_type, args.user, args.password, args.enabpass, args.filename)
+	hs = rlist.resolve_one_host(args.host, args.router_type, args.user, args.password, args.enabpass, args.port, args.filename)
 
 	# connect to the host
 	ds = None
 	try:
 		# prepare session
-		ds = rcom.prepare_session(hs)
+		ds = rcom.prepare_session(hs, args.timeout)
 		# set global device_session for signal handler
 		global device_session
 		device_session = ds

@@ -22,16 +22,6 @@ This module does remote logins to a Cisco routers and it is writen in Python,
 not expect(!) indeed.
 """
 
-# Global helpers and constants
-BIN_OPENSSH = "/usr/bin/ssh"
-""" System specific SSH binary path. Usually /usr/bin/ssh . """
-
-CONSOLE_LOGFORMAT = '%(message)s'
-""" Logging format for console output. """
-
-LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
-""" Logging format for logfile output. """
-
 import pexpect
 import sys
 import logging
@@ -48,7 +38,7 @@ class Cisco(rcom.DeviceOverSSH):
 	EXPECT_PASSWORD='(P|p)assword:'
 	EXPECT_PROMPT = '\n[a-zA-Z0-9\._-]+(>|#)'
 
-	def __init__(self,host,user,password,enabpassword=None,port=22,timeout=10):
+	def __init__(self,host,user,password,enabpassword=None,port=rcom.DEFAULT_SSH_PORT,timeout=rcom.DEFAULT_TIMEOUT):
 		rcom.DeviceOverSSH.__init__(self)
 		self.log = logging.getLogger("cisco")
 
@@ -57,6 +47,8 @@ class Cisco(rcom.DeviceOverSSH):
 		self.password = password
 		self.enabpassword = enabpassword
 		self.port = port
+		if not self.port:
+			self.port = rcom.DEFAULT_SSH_PORT
 		self.timeout = timeout
 
 	def closeDebugLog(self):
@@ -147,20 +139,20 @@ class Cisco(rcom.DeviceOverSSH):
 		while True:
 			i=self.sess.expect([self.EXPECT_PROMPT])
 			if(i==0): # prompt
-				self.log.debug("Got prompt after command. before="+s.before)
-				print "Got prompt after command. before="+s.before
+				self.log.debug("Got prompt after command. before="+self.sess.before)
+				print "Got prompt after command. before="+self.sess.before
 				break
 			elif(i==1): # anything to capture
-				self.log.debug("Got output from command: <"+s.before+">")
+				self.log.debug("Got output from command: <"+self.sess.before+">")
 #				import re
 #				if re.match(self.EXPECT_PROMPT,s.before):
 #					break
 				if output_handler:
 					self.log.debug("Calling output handler.")
 					try:
-						output_handler(command, s.before)
+						output_handler(command, self.sess.before)
 					except Exception as e:
-						self.log.error("Output handler failed for command "+l+" "+traceback.format_exc())
+						self.log.error("Output handler failed for command "+command+" "+traceback.format_exc())
 				else:
 					print self.sess.before
 

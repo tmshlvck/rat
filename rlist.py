@@ -22,10 +22,12 @@ This module reads and filters list of routers (or any other network devices).
 """
 
 # Global helpers and constants
-DEVICE_LIST = "/home/brill/projects/rat/device-list.conf"
+DEVICE_LIST = "~/.rat-device-list"
 """ Path to the text list of devices. Usually /etc/rat/device-list.txt . """
 
 # End of helpers and constants
+
+import os
 
 
 class ParseError(Exception):
@@ -43,11 +45,13 @@ class HostSpec(object):
 		self.user = None
 		self.password = None
 		self.enablepassword = None
+		self.port = None
 		
 		if line:
 			self.parseLine(line, defaults)
 
-	def init(self, hostname, host_type, enabled=False, user=None, password=None, enablepassword=None, shortname=None):
+	def init(self, hostname, host_type, enabled=False, user=None, password=None, enablepassword=None, port=None, shortname=None):
+		""" Set contents of the object based on externally-fed arguments. """
 		if not hostname:
 			raise Exception("Can not init HostSpec object without name.")
 		if not host_type:
@@ -60,13 +64,24 @@ class HostSpec(object):
 		self.user = user
 		self.password = password
 		self.enablepassword = enablepassword
+		self.port = port
 
 	def clone(self):
+		""" Create and return a new object with the same internal contents. """
 		hc = HostSpec()
-		hc.init(self.hostname, self.type, self.enabled, self.user, self.password, self.enablepassword, self.shortname)
+		hc.init(self.hostname, self.type, self.enabled, self.user, self.password, self.enablepassword, self.port, self.shortname)
 		return hc
 
 	def parseLine(self, line, defaults=None):
+		""" Read object contents from device-list file.  """
+
+		def parseHostnameGroup(group):
+			s = group.split(":",1)
+			if len(s) == 1:
+				return (group,None)
+			else:
+				return (s[0],int(s[1]))
+			
 		g = line.lstrip().split()
 		l = len(g)
 		if l > 7:
@@ -77,7 +92,7 @@ class HostSpec(object):
 			raise ParseError("Too few groups on line.", line, l)
 
 		self.shortname = g[0]
-		self.hostname = g[1]
+		(self.hostname, self.port) = parseHostnameGroup(g[1])
 		self.type = g[2]
 		self.enabled = int(g[3])
 		if l >= 5:
@@ -105,15 +120,20 @@ class HostSpec(object):
 				return '*'*len(string)
 			else:
 				return string
-			
+
+		def joinPort(hostname,port):
+			if port:
+				return hostname+":"+str(port)
+			else:
+				return hostname
 		
-		return [self.shortname, 
-					self.hostname, 
-					self.type, 
-					str(self.enabled), 
-					self.user, 
-					anon(self.password,  anonymize), 
-					anon(self.enablepassword, anonymize)]
+		return [self.shortname,
+			joinPort(self.hostname, self.port),
+			self.type,
+			str(self.enabled),
+			self.user,
+			anon(self.password,  anonymize),
+			anon(self.enablepassword, anonymize)]
 
 
 	def getLine(self, anonymize=False):
@@ -141,6 +161,10 @@ class HostSpec(object):
 			return False
 
 	def isDefault(self):
+		""" Return true when the object does not represent a real router enty
+		but a mere default values setting, which means line with * instead of
+		router name and shortname.
+		"""
 		if self.compareName('*'):
 			return True
 		else:
@@ -151,7 +175,7 @@ def read_list(filename=DEVICE_LIST):
 	""" Read host list from file and return iterator over group tuples. """
 
 	defaults = {}
-	rl = open(filename, 'r')
+	rl = open(os.path.expanduser(filename), 'r')
 	for l in rl.readlines():
 		if l.lstrip().startswith("#"):
 			continue
@@ -168,7 +192,9 @@ def read_list(filename=DEVICE_LIST):
 
 
 def filter_list(in_list, name=None, router_type=None, allow_disabled=False):
-	""" Filter host list. """
+	""" Filter host list based onf name, type and disabled flag or any
+	combination of these values.
+	"""
 
 	for r in in_list:
 		if not allow_disabled and not r.enabled:
@@ -177,7 +203,7 @@ def filter_list(in_list, name=None, router_type=None, allow_disabled=False):
 			yield r
 
 
-def resolve_one_host(hostname, router_type=None, user=None, password=None, enablepassword=None, filename=None):
+def resolve_one_host(hostname, router_type=None, user=None, password=None, enablepassword=None, port=None, filename=None):
 	""" Find HostSpec for the list of criterions, fill defaults and override additionals. """
 	l = read_list(filename) if filename else read_list()
 	hosts = list(filter_list(l, hostname, router_type))
@@ -193,6 +219,8 @@ def resolve_one_host(hostname, router_type=None, user=None, password=None, enabl
 			h.password = password
 		if enablepassword:
 			h.enablepassword = enablepassword
+		if port:
+			h.port = port
 	else:
 		raise Exception("Host name matching error. Matched "+str(len(hostgroups))+". Need to have single match.")
 

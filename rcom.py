@@ -25,11 +25,11 @@ This module does remote logins and it is writen in Python, not expect(!) indeed.
 BIN_OPENSSH = "/usr/bin/ssh"
 """ System specific SSH binary path. Usually /usr/bin/ssh . """
 
-CONSOLE_LOGFORMAT = '%(message)s'
-""" Logging format for console output. """
+DEFAULT_SSH_PORT = 22
+""" Default port to connect to SSH servers (22/tcp). """
 
-LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
-""" Logging format for logfile output. """
+DEFAULT_TIMEOUT = 10
+""" Default timeout for operations (10 sec.)"""
 
 import pexpect
 import sys
@@ -39,12 +39,14 @@ import threading, os
 
 import rlist
 
+# helper for interactive session which needs to know terminal size
 def get_term_size():
 	""" Return tuple (rows,columns) representing current terminal size. """
 	w = struct.pack("HHHH", 0, 0, 0, 0)
 	a = struct.unpack('hhhh', fcntl.ioctl(sys.stdout.fileno(), termios.TIOCGWINSZ , w))
 	return (a[0],a[1])
 
+# pipe for writing debugging output
 class LogPipe(threading.Thread):
 	"""
 	Object that implements special pipe for logging module that emulates
@@ -98,24 +100,31 @@ class LogPipe(threading.Thread):
 
 
 class Device(object):
-	""" TODO """
+	""" Basic skeleton object for devices. """
 	def connect(self):
+		""" Start the session. Begin interaction with the router. """
 		pass
 
 	def disconnect(self):
+		""" Disconnect (by sending proper commands to the router) and dispose the session. """
 		pass
 
 	def interact(self):
+		""" Go to interactive mode. Use current console as std{in,out,err} for the router. """
 		pass
 
 	def command(self,command,output_handler=None):
+		""" Run the command on the router. """
 		pass
 
 	def setWinSize(self,rows,columns):
+		""" Run the special commands to set terminal size. """
 		pass
 
 
 class DeviceOverSSH(Device):
+	""" Basic skeleton object for devices that interact over SSH."""
+
 	SSH_EXPECT_NEWKEY='Are you sure you want to continue connecting'
 	""" Expect string form SSH binary when new SSH key is encountered. """
 
@@ -126,7 +135,7 @@ class DeviceOverSSH(Device):
 		self.sess = None
 		self.log = None
 
-	def openSession(self, host, user, password, port=22, timeout=10):
+	def openSession(self, host, user, password, port=DEFAULT_SSH_PORT, timeout=DEFAULT_TIMEOUT):
 		return self.openOpenSSHSession(host, user, password, port, timeout)
 
 	def openOpenSSHSession(self, host, user, password, port=22, timeout=10):
@@ -178,10 +187,14 @@ class DeviceOverSSH(Device):
 
 
 
-def prepare_session(hostspec,port=22,timeout=10):
+def prepare_session(hostspec,timeout=DEFAULT_TIMEOUT):
 	"""
-	TODO
+	Return proper session based on hostspec (select right object according to router type)
+	and init the session object with the hostspec contents.
 	"""
+	if not timeout:
+		timeout = DEFAULT_TIMEOUT
+
 	nrt = hostspec.type.strip()
 	s = None
 	if nrt == 'ios':
@@ -193,11 +206,13 @@ def prepare_session(hostspec,port=22,timeout=10):
 
 
 		import cisco
-		s = cisco.Cisco(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
+		s = cisco.Cisco(hostspec.hostname,hostspec.user,hostspec.password,
+				hostspec.enablepassword,hostspec.port,timeout)
 		
 	elif nrt == 'procurve':
 		import procurve
-		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,hostspec.enablepassword,port,timeout)
+		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,
+				      hostspec.enablepassword,hostspec.port,timeout)
 	else:
 		raise Exception("Unknown router type: "+nrt)
 
