@@ -33,7 +33,7 @@ LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
 import logging
 import sys
 
-import rlist
+import rat.rlist
 
 
 def main(argv):
@@ -68,8 +68,8 @@ def main(argv):
 		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
 
 	# obtain the list and run the filters on that
-	rl = rlist.read_list(args.filename) if args.filename else rlist.read_list()
-	for rs in rlist.filter_list(rl, args.host, args.type,  args.allow_disab):
+	rl = rat.rlist.read_list(args.filename) if args.filename else rat.rlist.read_list()
+	for rs in rat.rlist.filter_list(rl, args.host, args.type,  args.allow_disab):
 		print rs.getLine(not args.showpass)
 
 
