@@ -11,6 +11,32 @@ Supported devices so far:
  * Cisco IOS (tested: 12.2, 15.0, 15.2)
  * HP ProCurve switches (tested: 2610 + 2810 series)
 
+Interactions:
+ * Python interface:
+   TODO
+ * Bash:
+
+List all enabled hosts:
+
+while read shortname hostname type enab username pass enabpass; do
+  # whaterver you need
+  echo "Hit host: $hn"
+done <<EOF
+$(./rat-list -p)
+EOF
+
+Connect to the host and run command:
+
+./rat-com -c "show version" shortname
+./rat-com -c "show version" hostname.domain.tld
+
+Connect to the host and start interactive session:
+
+./rat-com shortname
+./rat-com hostname.domain.tld
+
+Of course you can provide you own host defition (username, passwords, ...) on
+the command line. Please see ./rat-com --help for details.
 
 Author(s):
 Tomas Hlavacek (tomas.hlavacek@nic.cz)
