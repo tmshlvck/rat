@@ -1,3 +1,9 @@
+# This file contains super-secret list of routers and passwords for
+# accessing them. So keep it in security.
+#
+# To use this first fill in your routers and rename the file to
+# ~/.rat-device-list
+#
 # short name	long name			type		enabled	user	password	enable password
 snort		snort.domain.tld		ios		1	brill	password1	password2
 trunk		trunk.domain.tld		ios		0	brill	password3	password4
