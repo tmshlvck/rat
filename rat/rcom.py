@@ -206,9 +206,20 @@ def prepare_session(hostspec,timeout=DEFAULT_TIMEOUT):
 
 
 		import cisco
-		s = cisco.Cisco(hostspec.hostname,hostspec.user,hostspec.password,
+		s = cisco.CiscoIOS(hostspec.hostname,hostspec.user,hostspec.password,
 				hostspec.enablepassword,hostspec.port,timeout)
-		
+	elif nrt == 'nxos':
+		if not hostspec.user:
+			raise Exception("Can not connect: No user specified.")
+		if not hostspec.password:
+			# use blank password in that case... it might be ignored anyway
+			hostspec.password = ''
+
+
+		import cisco
+		s = cisco.CiscoNXOS(hostspec.hostname,hostspec.user,hostspec.password,
+				hostspec.enablepassword,hostspec.port,timeout)
+	
 	elif nrt == 'procurve':
 		import procurve
 		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,

@@ -71,7 +71,7 @@ def main(argv):
 	parser.add_argument('-e', '--enable', action='store', dest='enabpass',
 			    help='override enable password instead of using configuration')
 	parser.add_argument('-t', '--type', action='store', dest='router_type',
-			    help='override type, possible values: [ios,procurve]')
+			    help='override type, possible values: [ios,nxos,procurve]')
 	parser.add_argument('-c', '--command', action='store', dest='command', nargs='?', default='',
 			    help='run command and exit, leave empty to let script read commands from stdin')
 	parser.add_argument('-f', '--file', action='store', dest='filename',

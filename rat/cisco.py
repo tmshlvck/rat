@@ -29,8 +29,8 @@ import traceback
 
 import rcom
 
-# Cisco support
-class Cisco(rcom.DeviceOverSSH):
+# Cisco IOS support
+class CiscoIOS(rcom.DeviceOverSSH):
 	"""
 	Connect and handle connection to a Cisco IOS.
 	"""
@@ -157,6 +157,14 @@ class Cisco(rcom.DeviceOverSSH):
 					print self.sess.before
 
 
+
+# Cisco NX-OS support
+class CiscoNXOS(CiscoIOS):
+	"""
+	Connect and handle connection to a Cisco NX-OS.
+	"""
+
+	EXPECT_PROMPT = '[a-zA-Z0-9\._-]+(>|#)'
 
 
 
