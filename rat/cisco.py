@@ -137,10 +137,10 @@ class CiscoIOS(rcom.DeviceOverSSH):
 		self.log.debug("Running command: "+command)
 		self.sess.sendline(command)
 		while True:
-			i=self.sess.expect([self.EXPECT_PROMPT])
+			i=self.sess.expect([self.EXPECT_PROMPT,'\n'])
 			if(i==0): # prompt
 				self.log.debug("Got prompt after command. before="+self.sess.before)
-				print "Got prompt after command. before="+self.sess.before
+				print self.sess.before
 				break
 			elif(i==1): # anything to capture
 				self.log.debug("Got output from command: <"+self.sess.before+">")
