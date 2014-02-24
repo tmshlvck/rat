@@ -26,6 +26,7 @@ import logging
 import traceback
 import signal
 import argparse
+import os
 
 import rat.rcom
 import rat.rlist
@@ -107,7 +108,10 @@ def main(argv):
 	ds = None
 	try:
 		# prepare session
-		ds = rat.rcom.prepare_session(hs, args.timeout)
+		if args.timeout:
+			ds = rat.rcom.prepare_session(hs, int(args.timeout))
+		else:
+			ds = rat.rcom.prepare_session(hs)
 		# set global device_session for signal handler
 		global device_session
 		device_session = ds
