@@ -142,6 +142,7 @@ class ProCurve(rcom.DeviceOverSSH):
 					break
 				else:
 					self.log.debug("Got prompt before command output. Ignore.")
+					output_start = True
 		 	elif i == 2: # more
 		 		self.log.debug("Sending space for more...")
 		 		self.sess.send(' ')
