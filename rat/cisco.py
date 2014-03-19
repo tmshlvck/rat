@@ -132,6 +132,16 @@ class CiscoIOS(rcom.DeviceOverSSH):
 
 
 	def command(self,command,output_handler=None):
+		def output(l):
+			if output_handler:
+				self.log.debug("Calling output handler.")
+				try:
+					output_handler(command, self.sess.before)
+				except Exception as e:
+					self.log.error("Output handler failed for command "+command+" "+traceback.format_exc())
+			else:
+				print self.sess.before
+
 		self.setWinSize(0, 0)
 
 		self.log.debug("Running command: "+command)
@@ -140,21 +150,14 @@ class CiscoIOS(rcom.DeviceOverSSH):
 			i=self.sess.expect([self.EXPECT_PROMPT,'\n'])
 			if(i==0): # prompt
 				self.log.debug("Got prompt after command. before="+self.sess.before)
-				print self.sess.before
+				output(self.sess.before)
 				break
 			elif(i==1): # anything to capture
 				self.log.debug("Got output from command: <"+self.sess.before+">")
 #				import re
 #				if re.match(self.EXPECT_PROMPT,s.before):
 #					break
-				if output_handler:
-					self.log.debug("Calling output handler.")
-					try:
-						output_handler(command, self.sess.before)
-					except Exception as e:
-						self.log.error("Output handler failed for command "+command+" "+traceback.format_exc())
-				else:
-					print self.sess.before
+				output(self.sess.before)
 
 
 
