@@ -139,7 +139,7 @@ class DeviceOverSSH(Device):
 		return self.openOpenSSHSession(host, user, password, port, timeout)
 
 	def openOpenSSHSession(self, host, user, password, port=22, timeout=10):
-		self.log.debug("Connecting to host "+host+" for user "+user+" port "+str(port))
+		self.log.debug("Connecting to host "+str(host)+" for user "+str(user)+" port "+str(port))
 
 		c = BIN_OPENSSH+' -p'+str(port)+' '+user+'@'+host
 		self.log.debug("Spawning command "+c)
@@ -223,6 +223,10 @@ def prepare_session(hostspec,timeout=DEFAULT_TIMEOUT):
 	elif nrt == 'procurve':
 		import procurve
 		s = procurve.ProCurve(hostspec.hostname,hostspec.user,hostspec.password,
+				      hostspec.enablepassword,hostspec.port,timeout)
+	elif nrt == 'ironware':
+		import ironware
+		s = ironware.Ironware(hostspec.hostname,hostspec.user,hostspec.password,
 				      hostspec.enablepassword,hostspec.port,timeout)
 	else:
 		raise Exception("Unknown router type: "+nrt)
