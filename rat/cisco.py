@@ -95,13 +95,13 @@ class CiscoIOS(rcom.DeviceOverSSH):
 
 	def connect(self):
 		if not self.host:
-			Exception("Missing needed argument host.")
+			raise Exception("Missing needed argument host.")
 
 		if not self.user:
-			Exception("Missing needed argument user.")
+			raise Exception("Missing needed argument user.")
 
 		if not self.password:
-			Exception("Missing needed argument password.")
+			raise Exception("Missing needed argument password.")
 
 		try:
 			self.openSession(self.host, self.user, self.password, self.port, self.timeout)
