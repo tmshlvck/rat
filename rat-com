@@ -93,13 +93,16 @@ def main(argv):
 		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
 
 	# normalize command
+        commands=[]
 	if args.command == None: # command set to None when -c without args is present
 		if os.isatty(sys.stdin.fileno()):
 			print "Enter commands (Ctrl-D to finish):"
 		# read commands from stdin
-		args.command = ''.join(sys.stdin.readlines())
-	if args.command == '': # default, no -c specified
-		args.command = None
+		commands = [l.rstrip() for l in sys.stdin.readlines()]
+	elif args.command == '': # default, no -c specified
+		commands = []
+        else:
+                commands=[args.command]
 
 	# find details of host and fill the HostSpec object
 	hs = rat.rlist.resolve_one_host(args.host, args.router_type, args.user, args.password, args.enabpass, args.port, args.filename)
@@ -120,9 +123,10 @@ def main(argv):
 
 
 	# and run the command or pass the session to the user
-		if args.command:
-			log.debug("Going to run "+("(enabled)" if hs.enablepassword else "(not enabled)")+" command(s): "+args.command)
-			ds.command(args.command)
+		if commands:
+                        for c in commands:
+                                log.debug("Going to run "+("(enabled)" if hs.enablepassword else "(not enabled)")+" command(s): "+c)
+                                ds.command(c)
 		else:
 			log.debug("Going to interactive mode "+("(enabled)" if hs.enablepassword else "(not enabled)"))
 			ds.interact()

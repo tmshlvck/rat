@@ -26,6 +26,7 @@ import pexpect
 import sys
 import logging
 import traceback
+import re
 
 import rcom
 
@@ -36,7 +37,7 @@ class CiscoIOS(rcom.DeviceOverSSH):
 	"""
 
 	EXPECT_PASSWORD='(P|p)assword:'
-	EXPECT_PROMPT = '\n[a-zA-Z0-9\._-]+(>|#)'
+	EXPECT_PROMPT = '[a-zA-Z0-9\._\(\)-]+(>|#)'
 
 	def __init__(self,host,user,password,enabpassword=None,port=rcom.DEFAULT_SSH_PORT,timeout=rcom.DEFAULT_TIMEOUT):
 		rcom.DeviceOverSSH.__init__(self)
@@ -107,6 +108,7 @@ class CiscoIOS(rcom.DeviceOverSSH):
 			self.openSession(self.host, self.user, self.password, self.port, self.timeout)
 			self.handleSSH(self.EXPECT_PROMPT)
 			self.handleEnab()
+                        self.setWinSize(0, 0)
 		except Exception as e:
 				self.closeDebugLog()
 				raise e
@@ -133,28 +135,26 @@ class CiscoIOS(rcom.DeviceOverSSH):
 
 	def command(self,command,output_handler=None):
 		def output(l):
+                        l=str(l.rstrip())
 			if output_handler:
 				self.log.debug("Calling output handler.")
 				try:
-					output_handler(command, self.sess.before)
+					output_handler(command, l)
 				except Exception as e:
 					self.log.error("Output handler failed for command "+command+" "+traceback.format_exc())
 			else:
-				print self.sess.before
-
-		self.setWinSize(0, 0)
+				print l
 
 		self.log.debug("Running command: "+command)
 		self.sess.sendline(command)
 		while True:
 			i=self.sess.expect([self.EXPECT_PROMPT,'\n'])
 			if(i==0): # prompt
-				self.log.debug("Got prompt after command. before="+self.sess.before)
+				self.log.debug("Got prompt after command. before="+(re.escape(self.sess.before) if self.sess.before else '') +" after="+(re.escape(self.sess.after) if self.sess.after else ''))
 				output(self.sess.before)
 				break
 			elif(i==1): # anything to capture
-				self.log.debug("Got output from command: <"+self.sess.before+">")
-#				import re
+				self.log.debug("Got output from command. before="+(re.escape(self.sess.before) if self.sess.before else '') +" after="+(re.escape(self.sess.after) if self.sess.after else ''))
 #				if re.match(self.EXPECT_PROMPT,s.before):
 #					break
 				output(self.sess.before)
