@@ -20,7 +20,7 @@ List all enabled hosts:
 
 while read shortname hostname type enab username pass enabpass; do
   # whaterver you need
-  echo "Hit host: $hn"
+  echo "Hit host: $hostname"
 done <<EOF
 $(./rat-list -p)
 EOF
