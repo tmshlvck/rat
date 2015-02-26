@@ -38,7 +38,7 @@ import rat.rlist
 
 def main(argv):
 	# setup logger
-	log = logging.getLogger("rlist")
+	log = logging.getLogger("rat-list")
 
 	# parse command line args
 	import argparse

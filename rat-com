@@ -53,7 +53,7 @@ def sigwinch(sig, data):
 
 def main(argv):
 	# setup logger
-	log = logging.getLogger("rcom")
+	log = logging.getLogger("rat-com")
 
 	# set signal SIGWINCH handler
 	signal.signal(signal.SIGWINCH, sigwinch)
