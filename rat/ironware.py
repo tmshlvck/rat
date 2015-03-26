@@ -36,7 +36,7 @@ class Ironware(rcom.DeviceOverSSH):
 	"""
 
 	EXPECT_PASSWORD='(P|p)assword:'
-	EXPECT_PROMPT = '\n[a-zA-Z0-9@\._-]+(>|#)'
+	EXPECT_PROMPT = '[a-zA-Z0-9@\._-]+(>|#)'
 
 	def __init__(self,host,user,password,enabpassword=None,port=rcom.DEFAULT_SSH_PORT,timeout=rcom.DEFAULT_TIMEOUT):
 		rcom.DeviceOverSSH.__init__(self)
@@ -57,7 +57,7 @@ class Ironware(rcom.DeviceOverSSH):
 
 	def setWinSize(self, rows, columns):
 		""" Subroutine for setting window size on Brocade
-		(which needs console interaction to do so).
+		(which does nothing on Brocade).
 		"""
 
 		if not self.log:
@@ -66,13 +66,6 @@ class Ironware(rcom.DeviceOverSSH):
 			raise Exception("Calling setWinSize() on object that has no initialized session.")
 
 		self.log.debug("new rows="+str(rows)+" columns="+str(columns))
-
-		self.sess.sendline("terminal length "+str(rows))
-		self.sess.expect([self.EXPECT_PROMPT])
-
-		self.sess.sendline("terminal width "+str(columns))
-		self.sess.expect([self.EXPECT_PROMPT])
-
 
 	def handleEnab(self):
 		if not self.enabpassword:
@@ -142,10 +135,12 @@ class Ironware(rcom.DeviceOverSSH):
 			else:
 				print self.sess.before
 
-		self.setWinSize(0, 0)
+		self.sess.sendline('skip-page-display') # instead terminal length 0
+		self.sess.expect([self.EXPECT_PROMPT])
 
 		self.log.debug("Running command: "+command)
 		self.sess.sendline(command)
+		self.sess.sendline('') # hack to overcome async output mixing with prompt
 		while True:
 			i=self.sess.expect([self.EXPECT_PROMPT,'\n'])
 			if(i==0): # prompt
@@ -153,12 +148,11 @@ class Ironware(rcom.DeviceOverSSH):
 				output(self.sess.before)
 				break
 			elif(i==1): # anything to capture
-				self.log.debug("Got output from command: <"+self.sess.before+">")
+				self.log.debug("Got output from command: <"+self.sess.before.strip()+">")
 #				import re
 #				if re.match(self.EXPECT_PROMPT,s.before):
 #					break
 				output(self.sess.before)
-
 
 
 
