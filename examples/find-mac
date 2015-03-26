@@ -1,0 +1,189 @@
+#!/usr/bin/env python
+#
+# find-mac - Router Automation Toolkit application: find particular MAC address
+# (C) 2013 Tomas Hlavacek (tmshlvck@gmail.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+"""
+This script finds MAC address in a hirearchical network (provided it
+knows where to start and that the descriptions leads towards next
+switches in line.
+"""
+
+import sys
+import logging
+import traceback
+import argparse
+import re
+import threading
+
+import rat.rcom
+import rat.rlist
+
+CONSOLE_LOGFORMAT = '%(message)s'
+""" Logging format for console output. """
+
+LOGFILE_LOGFORMAT = '%(asctime)-15s %(module)s:%(name)s: %(message)s'
+""" Logging format for logfile output. """
+
+SUPPORT_TYPES=["ios","procurve","nxos"]
+""" TODO """
+
+BLACKLIST_DEVICES=["router1.domain.tld",
+		   "router2.domain.tld",
+		   "wifiap.domain.tld",]
+
+
+MAC_IN_REGEXP="^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$"
+""" Regular expression to match the MAC address, Linux style. """
+
+
+class QueryThread(threading.Thread):
+	def __init__(self,hostspec,mac,log):
+		self.hostspec = hostspec
+		self.mac = mac
+		self.result = ""
+		self.log = log
+		threading.Thread.__init__(self)
+
+	def result_handler(self,command,data):
+		self.result = self.result + data.rstrip("\n") + "\n"
+
+	def run(self):
+		# clear enab password (enab mode not needed)
+		self.hostspec.enablepassword = None
+
+		if self.hostspec.type == "ios" or self.hostspec.type == "nxos":
+			command = "show mac address-table address "+self.mac
+		elif self.hostspec.type == "procurve":
+			command = "show mac-address "+self.mac
+		else:
+			raise Exception("Unsupported host type encountered.")
+
+		ds = None
+		try:
+			# prepare session
+			ds = rat.rcom.prepare_session(self.hostspec)
+			# and finally connect
+			ds.connect()
+			# and run the command or pass the session to the user
+			self.log.debug("Going to run (not enabled) command(s): "+command)
+			ds.command(command,self.result_handler)
+
+		except:
+			self.log.error("Connect failed: "+traceback.format_exc())
+		finally:
+			if ds:
+				ds.disconnect()
+
+	def print_result(self):
+		MAC_LIN_REGEXP="([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}"
+		""" Regular expression to match the MAC address, Linux style. """
+
+		MAC_CISCO_REGEXP="([0-9a-fA-F]{4}\.){2}[0-9a-fA-F]{4}"
+		""" Regular expression to match the MAC address, Cisco style. """
+
+		MAC_PROCURVE_REGEXP="[0-9a-fA-F]{6}-[0-9a-fA-F]{6}"
+		""" Regular expression to match the MAC address, HP ProCurve style. """
+
+		mac_lin = re.compile(MAC_LIN_REGEXP)
+		mac_cisco = re.compile(MAC_CISCO_REGEXP)
+		mac_procurve = re.compile(MAC_PROCURVE_REGEXP)
+
+		def is_positive(lines):
+			for l in lines:
+				if mac_lin.search(l) or mac_cisco.search(l) or mac_procurve.search(l):
+					# ignore lines with the command
+					if l.find("show mac")>-1:
+						continue
+
+					# ignore HP ProCurve header lines
+					if l.find("Status and Counters - Address Table")>-1:
+						continue
+
+					# ignore HP ProCurve line where switch says it is not found
+					if l.find("not found.")>-1:
+						continue
+
+					# True when the switch displays address
+					return True
+			# False otherwise
+			return False
+
+		if is_positive(self.result.splitlines()):
+			print "="*80
+			print "Result from "+self.hostspec.hostname+" :"
+			if self.hostspec.type == "procurve":
+				print re.sub("\x1b[^A-Z]+[A-Z]",'',self.result)
+			else:
+				print self.result
+			print "="*80+"\n\n\n"
+#		else:
+#			print "No result from "+self.hostspec.hostname+" ."
+
+
+def main(argv):
+	# setup logger
+	log = logging.getLogger("find-mac")
+
+	# parse command line args
+	parser = argparse.ArgumentParser(description='Script for searching the whole network for a particular MAC address.')
+	parser.add_argument('-d', '--debug', action='store_const', dest='loglevel',
+			    const=logging.DEBUG, default=logging.INFO,
+			    help='enable debugging of pexpect and script flow')
+	parser.add_argument('-l', '--log', action='store', dest='logfile',
+			    help='write log messages to logfile instead of stderr')
+
+	parser.add_argument('mac', help='MAC address to find in a1:b2:c3:d4:e5:f6 format')
+
+	args = parser.parse_args(argv[1:])
+
+	# setup logger
+	if args.logfile:
+		logging.basicConfig(level=args.loglevel,format=LOGFILE_LOGFORMAT,filename=args.logfile)
+	else:
+		logging.basicConfig(level=args.loglevel,format=CONSOLE_LOGFORMAT)
+
+	# normalize mac
+	if args.mac == None: # No address entered
+		print "Error: MAC address needed.\n"
+		parser.print_help()
+		return 0
+	if not re.match(MAC_IN_REGEXP,args.mac):
+		print "Error: Invalid MAC address.\n"
+		parser.print_help()
+		return 0
+
+	rawlist = list(rat.rlist.read_list()) # beware, it is an iterator -> list conversion is needed for reuse
+	switchlist = []
+	for t in SUPPORT_TYPES:
+		switchlist.extend([h for h in rat.rlist.filter_list(rawlist,router_type=t) if not h.hostname in BLACKLIST_DEVICES])
+
+	thread_list = []
+	for h in switchlist:
+		log.debug("Starting thread for "+h.hostname)
+		thread_list.append(QueryThread(h,args.mac,log))
+		thread_list[-1].start()
+	for t in thread_list:
+		log.debug("Joined thread for "+t.hostspec.hostname+" .")
+		t.join()
+	for t in thread_list:
+		t.print_result()
+	
+
+if __name__ == "__main__":
+	main(sys.argv)
+
