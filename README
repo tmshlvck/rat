@@ -9,12 +9,15 @@ There are two distinct interfaces:
 
 Supported devices so far:
  * Cisco IOS (tested: 12.2, 15.0, 15.2)
+ * Cisco NX-OS (tested: 6.0)
  * HP ProCurve switches (tested: 2610 + 2810 series)
+ * Brocade Ironware (tested: 7.x + 8.x)
 
 Interactions:
  * Python interface:
    TODO
  * Bash:
+   TODO
 
 List all enabled hosts:
 
@@ -37,6 +40,12 @@ Connect to the host and start interactive session:
 
 Of course you can provide you own host defition (username, passwords, ...) on
 the command line. Please see ./rat-com --help for details.
+
+Examples + applications:
+Directory example contains various examples that uses rat toolkit
+for network administration and operation automation.
+
+
 
 Author(s):
 Tomas Hlavacek (tomas.hlavacek@nic.cz)
