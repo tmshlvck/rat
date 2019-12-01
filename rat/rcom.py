@@ -228,6 +228,11 @@ def prepare_session(hostspec,timeout=DEFAULT_TIMEOUT):
 		import ironware
 		s = ironware.Ironware(hostspec.hostname,hostspec.user,hostspec.password,
 				      hostspec.enablepassword,hostspec.port,timeout)
+        elif nrt == 'junos':
+		import junos
+		s = junos.Junos(hostspec.hostname,hostspec.user,hostspec.password,
+				      hostspec.enablepassword,hostspec.port,timeout)
+
 	else:
 		raise Exception("Unknown router type: "+nrt)
 
